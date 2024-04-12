@@ -1005,3 +1005,4 @@ namespace BMP_Decoder
 
         return statusCode;
     }
+}
