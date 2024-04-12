@@ -15,4 +15,6 @@ Planned future support for:
 - 48bpp images
 - 64bpp images
 - color profiles
-- halftoning 
+- halftoning
+
+It uses the f-code library (in my other repository).
