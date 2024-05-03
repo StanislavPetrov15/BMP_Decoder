@@ -44,8 +44,8 @@ namespace BMP_Decoder
          int Height;
          int BitDepth;
          CompressionMethod CompressionMethod;
-         int PixelsPerMeterX = UINT_MAX;
-         int PixelsPerMeterY = UINT_MAX;
+         unsigned int PixelsPerMeterX = UINT_MAX;
+         unsigned int PixelsPerMeterY = UINT_MAX;
          unsigned int UsedColorsCount = UINT_MAX;
          unsigned int ImportantColorsCount = UINT_MAX;
          enum ScanlineOrder ScanlineOrder;
