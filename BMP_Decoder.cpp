@@ -127,14 +127,13 @@ namespace BMP_Decoder
 
     //(MUTATE _image)
     //if _generatePixelData is false, then only metadata is generated (no pixel data)
-    //the lines int the generated image Top-Bottom order (the first line in the generated array is the topmost line of the image);
+    /* if _outputScanlineOrder is TOP_DOWN then the first line in the generated image is the topmost line of the input image and if
+       it's BOTTOM_UP then the first line in the generated image is the bottom-most line of the input image */
     //the generated image is 32bpp
-    /* the file specified by _filepath (exists), (it's size is maximum 1GB), (it contains maximum 1 billion pixels)
-       and is (structurally and semantically valid) (no validation is performer at all) -> */
-    int Decode(const string& _filepath, bool _generatePixelData, BMP_Image& _image)
+    /* parameter _file represents the contents of a .BMP file (it's size is maximum 1GB), (it contains maximum 1 billion pixels)
+       and the contents are (structurally and semantically valid) (no validation is performed at all) -> */
+    int Decode(unsigned char* _file, bool _generatePixelData, BMP_Image& _image, ScanlineOrder _outputScanlineOrder)
     {
-        int statusCode = 0; //non-terminating error can occur and the error must be recorded
-
         BMP_Image& image = _image;
 
         static const int BITMAP_CORE_HEADER_SIZE = 12;
@@ -146,55 +145,43 @@ namespace BMP_Decoder
         static const int BITMAP_INFO_HEADER_V4_SIZE = 108;
         static const int BITMAP_INFO_HEADER_V5_SIZE = 124;
 
-        filesystem::File file(_filepath);
-
-        if (file.size() > 1024 * 1024 * 1024)
-        {
-            return ERROR_FILE_OVER_1_GIGABYTE;
-        }
-
-        unsigned char* fileBuffer = new unsigned char[file.size()];
-        file.ReadBlock(fileBuffer, file.size(), false);
-
-        list<char> imageData(file.size(), false);
-
-        file.Close();
+        int statusCode = 0; //non-terminating error can occur and the error must be recorded
 
         //READING THE FILE HEADER
 
-        int fileBufferPosition = 10;
+        int filePosition = 10;
 
-        int pixelArrayPosition = ReadI32(fileBuffer, fileBufferPosition);
+        int pixelArrayPosition = ReadI32(_file, filePosition);
 
         //(STATE) fileBufferPosition = 14
 
         //READING THE DIB-HEADER
 
-        int headerSize = ReadI32(fileBuffer, fileBufferPosition);
+        int headerSize = ReadI32(_file, filePosition);
         int bitmapSize;
 
         if (headerSize == BITMAP_CORE_HEADER_SIZE)
         {
-            image.Width = ReadI16(fileBuffer, fileBufferPosition);
-            image.Height = ReadI16(fileBuffer, fileBufferPosition);
-            fileBufferPosition += 2; //ignoring the field NumberOfColorPlanes
-            image.BitDepth = ReadI16(fileBuffer, fileBufferPosition);
+            image.Width = ReadI16(_file, filePosition);
+            image.Height = ReadI16(_file, filePosition);
+            filePosition += 2; //ignoring the field NumberOfColorPlanes
+            image.BitDepth = ReadI16(_file, filePosition);
             image.CompressionMethod = CompressionMethod::BI_RGB_;
         }
         else
         {
             //BITMAP_INFO_HEADER_V1
 
-            image.Width = ReadI32(fileBuffer, fileBufferPosition);
-            image.Height = ReadI32(fileBuffer, fileBufferPosition);
-            fileBufferPosition += 2; //ignoring the field NumberOfColorPlanes
-            image.BitDepth = ReadI16(fileBuffer, fileBufferPosition);
-            image.CompressionMethod = static_cast<CompressionMethod>(ReadI32(fileBuffer, fileBufferPosition));
-            bitmapSize = ReadI32(fileBuffer, fileBufferPosition);
-            image.PixelsPerMeterX = ReadI32(fileBuffer, fileBufferPosition);
-            image.PixelsPerMeterY = ReadI32(fileBuffer, fileBufferPosition);
-            image.UsedColorsCount = ReadI32(fileBuffer, fileBufferPosition);
-            image.ImportantColorsCount = ReadI32(fileBuffer, fileBufferPosition);
+            image.Width = ReadI32(_file, filePosition);
+            image.Height = ReadI32(_file, filePosition);
+            filePosition += 2; //ignoring the field NumberOfColorPlanes
+            image.BitDepth = ReadI16(_file, filePosition);
+            image.CompressionMethod = static_cast<CompressionMethod>(ReadI32(_file, filePosition));
+            bitmapSize = ReadI32(_file, filePosition);
+            image.PixelsPerMeterX = ReadI32(_file, filePosition);
+            image.PixelsPerMeterY = ReadI32(_file, filePosition);
+            image.UsedColorsCount = ReadI32(_file, filePosition);
+            image.ImportantColorsCount = ReadI32(_file, filePosition);
 
             //(->)
 
@@ -202,32 +189,32 @@ namespace BMP_Decoder
 
            if (headerSize == OS22X_BITMAP_HEADER_SHORT_SIZE)
            {
-                fileBufferPosition += 2; //ignoring the field Units
-                fileBufferPosition += 2; //ignoring alignment field
-                fileBufferPosition += 2; //ignoring the field RecordingAlgorithm
-                image.HalftoningAlgorithm = static_cast<HalftoningAlgorithm>(ReadI16(fileBuffer, fileBufferPosition));
-                image.HalftoningParameter1 = ReadI32(fileBuffer, fileBufferPosition);
-                image.HalftoningParameter2 = ReadI32(fileBuffer, fileBufferPosition);
-                fileBufferPosition += 4; //ignoring the field ColorEncoding
-                fileBufferPosition += 4; //ignoring reserved field
+                filePosition += 2; //ignoring the field Units
+                filePosition += 2; //ignoring alignment field
+                filePosition += 2; //ignoring the field RecordingAlgorithm
+                image.HalftoningAlgorithm = static_cast<HalftoningAlgorithm>(ReadI16(_file, filePosition));
+                image.HalftoningParameter1 = ReadI32(_file, filePosition);
+                image.HalftoningParameter2 = ReadI32(_file, filePosition);
+                filePosition += 4; //ignoring the field ColorEncoding
+                filePosition += 4; //ignoring reserved field
            }
            else if (headerSize == OS22X_BITMAP_HEADER_LONG_SIZE)
            {
-               fileBufferPosition += 2; //ignoring the field Units
-               fileBufferPosition += 2; //ignoring alignment field
-               fileBufferPosition += 2; //ignoring the field RecordingAlgorithm
-               image.HalftoningAlgorithm = static_cast<HalftoningAlgorithm>(ReadI16(fileBuffer, fileBufferPosition));
-               image.HalftoningParameter1 = ReadI32(fileBuffer, fileBufferPosition);
-               image.HalftoningParameter2 = ReadI32(fileBuffer, fileBufferPosition);
+               filePosition += 2; //ignoring the field Units
+               filePosition += 2; //ignoring alignment field
+               filePosition += 2; //ignoring the field RecordingAlgorithm
+               image.HalftoningAlgorithm = static_cast<HalftoningAlgorithm>(ReadI16(_file, filePosition));
+               image.HalftoningParameter1 = ReadI32(_file, filePosition);
+               image.HalftoningParameter2 = ReadI32(_file, filePosition);
            }
            else
            {
                //BITMAP_INFO_HEADER_V2
                if (headerSize > BITMAP_INFO_HEADER_V1_SIZE || (image.CompressionMethod == CompressionMethod::BI_BITFIELDS_))
                {
-                   image.RedMask = ReadI32(fileBuffer, fileBufferPosition);
-                   image.GreenMask = ReadI32(fileBuffer, fileBufferPosition);
-                   image.BlueMask = ReadI32(fileBuffer, fileBufferPosition);
+                   image.RedMask = ReadI32(_file, filePosition);
+                   image.GreenMask = ReadI32(_file, filePosition);
+                   image.BlueMask = ReadI32(_file, filePosition);
                }
 
                //(->)
@@ -235,7 +222,7 @@ namespace BMP_Decoder
                //BITMAP_INFO_HEADER_V3
                if (headerSize > BITMAP_INFO_HEADER_V1_SIZE || (image.CompressionMethod == CompressionMethod::BI_ALPHABITFIELDS_))
                {
-                   image.AlphaMask = ReadI32(fileBuffer, fileBufferPosition);
+                   image.AlphaMask = ReadI32(_file, filePosition);
                }
 
                //(->)
@@ -243,19 +230,19 @@ namespace BMP_Decoder
                 //BITMAP_INFO_HEADER_V4
                 if (headerSize > BITMAP_INFO_HEADER_V3_SIZE)
                 {
-                    image.ColorSpaceType = ReadI32(fileBuffer, fileBufferPosition);
-                    image.CIE_X_Red = ReadI32(fileBuffer, fileBufferPosition);
-                    image.CIE_Y_Red = ReadI32(fileBuffer, fileBufferPosition);
-                    image.CIE_Z_Red = ReadI32(fileBuffer, fileBufferPosition);
-                    image.CIE_X_Green = ReadI32(fileBuffer, fileBufferPosition);
-                    image.CIE_Y_Green = ReadI32(fileBuffer, fileBufferPosition);
-                    image.CIE_Z_Green = ReadI32(fileBuffer, fileBufferPosition);
-                    image.CIE_X_Blue = ReadI32(fileBuffer, fileBufferPosition);
-                    image.CIE_Y_Blue = ReadI32(fileBuffer, fileBufferPosition);
-                    image.CIE_Z_Blue = ReadI32(fileBuffer, fileBufferPosition);
-                    image.GammaRed = ReadI32(fileBuffer, fileBufferPosition);
-                    image.GammaGreen = ReadI32(fileBuffer, fileBufferPosition);
-                    image.GammaBlue = ReadI32(fileBuffer, fileBufferPosition);
+                    image.ColorSpaceType = ReadI32(_file, filePosition);
+                    image.CIE_X_Red = ReadI32(_file, filePosition);
+                    image.CIE_Y_Red = ReadI32(_file, filePosition);
+                    image.CIE_Z_Red = ReadI32(_file, filePosition);
+                    image.CIE_X_Green = ReadI32(_file, filePosition);
+                    image.CIE_Y_Green = ReadI32(_file, filePosition);
+                    image.CIE_Z_Green = ReadI32(_file, filePosition);
+                    image.CIE_X_Blue = ReadI32(_file, filePosition);
+                    image.CIE_Y_Blue = ReadI32(_file, filePosition);
+                    image.CIE_Z_Blue = ReadI32(_file, filePosition);
+                    image.GammaRed = ReadI32(_file, filePosition);
+                    image.GammaGreen = ReadI32(_file, filePosition);
+                    image.GammaBlue = ReadI32(_file, filePosition);
                 }
 
                 //(->)
@@ -263,10 +250,10 @@ namespace BMP_Decoder
                 //BITMAP_INFO_HEADER_V5
                 if (headerSize > BITMAP_INFO_HEADER_V4_SIZE)
                 {
-                    image.Intent = ReadI32(fileBuffer, fileBufferPosition);
-                    image.ProfileData = ReadI32(fileBuffer, fileBufferPosition);
-                    image.ProfileSize = ReadI32(fileBuffer, fileBufferPosition);
-                    fileBufferPosition += 4; //ignoring reserved field
+                    image.Intent = ReadI32(_file, filePosition);
+                    image.ProfileData = ReadI32(_file, filePosition);
+                    image.ProfileSize = ReadI32(_file, filePosition);
+                    filePosition += 4; //ignoring reserved field
                 }
            }
         }
@@ -278,22 +265,22 @@ namespace BMP_Decoder
 
         if (image.BitDepth == 2)
         {
-             delete [] fileBuffer;
+             delete [] _file;
              return ERROR_2_BIT_IMAGES_ARE_NOT_SUPPORTED;
         }
         else if (image.BitDepth == 48)
         {
-            delete [] fileBuffer;
+            delete [] _file;
             return ERROR_48_BIT_IMAGES_ARE_NOT_SUPPORTED;
         }
         else if (image.BitDepth == 64)
         {
-            delete [] fileBuffer;
+            delete [] _file;
             return ERROR_64_BIT_IMAGES_ARE_NOT_SUPPORTED;
         }
         else if (image.BitDepth == 1 && image.CompressionMethod != CompressionMethod::BI_RGB_)
         {
-            delete [] fileBuffer;
+            delete [] _file;
             return ERROR_COMPRESSED_1_BIT_IMAGES_ARE_NOT_SUPPORTED;
         }
         else if (image.BitDepth == 24 &&
@@ -301,7 +288,7 @@ namespace BMP_Decoder
                  image.CompressionMethod != CompressionMethod::BI_BITFIELDS_ &&
                  image.CompressionMethod != CompressionMethod::BI_ALPHABITFIELDS_)
         {
-            delete [] fileBuffer;
+            delete [] _file;
             return ERROR_COMPRESSSED_24_BIT_IMAGES_ARE_NOT_SUPPORTED;
         }
         else if (headerSize == BITMAP_INFO_HEADER_V5_SIZE)
@@ -336,26 +323,26 @@ namespace BMP_Decoder
              for (int i = 0; i < paletteLength; i++)
              {
                  RGBA color;
-                 color.B = ReadI8(fileBuffer, fileBufferPosition);
-                 color.G = ReadI8(fileBuffer, fileBufferPosition);
-                 color.R = ReadI8(fileBuffer, fileBufferPosition);
+                 color.B = ReadI8(_file, filePosition);
+                 color.G = ReadI8(_file, filePosition);
+                 color.R = ReadI8(_file, filePosition);
                  color.A = 255;
                  image.ColorTable.Append(color);
 
                  if (headerSize != BITMAP_CORE_HEADER_SIZE)
                  {
-                     fileBufferPosition++; //ignoring the alpha field
+                     filePosition++; //ignoring the alpha field
                  }
              }
         }
 
         if (!_generatePixelData)
         {
-            delete [] fileBuffer;
+            delete [] _file;
             return statusCode;
         }
 
-        fileBufferPosition = pixelArrayPosition;
+        filePosition = pixelArrayPosition;
 
         if (image.Height < 0)
         {
@@ -391,7 +378,7 @@ namespace BMP_Decoder
                 //for every meaningful byte (8 pixels) in the line
                 for (int rowByteIndex = 0; rowByteIndex < meaningfulRowBytes; rowByteIndex++)
                 {
-                    unsigned char rowByte = ReadI8(fileBuffer, fileBufferPosition);
+                    unsigned char rowByte = ReadI8(_file, filePosition);
 
                     //for every bit(pixel) in the byte; bits are read in reverse order, because the most significant bit specifies the the leftmost pixel
                     for (int bitIndex = 7; bitIndex > -1; bitIndex--)
@@ -403,12 +390,19 @@ namespace BMP_Decoder
                             break; //go to next line
                         }
 
-                        image.Pixels[(rowIndex * image.Width) + columnIndex] = image.ColorTable[bit_operations::GetBit(rowByte, bitIndex)];
+                        if (_outputScanlineOrder == ScanlineOrder::TOP_DOWN)
+                        {
+                            image.Pixels[(rowIndex * image.Width) + columnIndex] = image.ColorTable[bit_operations::GetBit(rowByte, bitIndex)];
+                        }
+                        else
+                        {
+                            image.Pixels[(((image.Height - rowIndex) - 1) * image.Width) + columnIndex] = image.ColorTable[bit_operations::GetBit(rowByte, bitIndex)];
+                        }
                     }
                 }
 
                 //ignoring the padding at the end of the line
-                fileBufferPosition += rowPadding;
+                filePosition += rowPadding;
 
                 if (image.ScanlineOrder == ScanlineOrder::TOP_DOWN && rowIndex++ == image.Height - 1)
                 {
@@ -441,7 +435,7 @@ namespace BMP_Decoder
                 //for every meaningful byte (2 pixels) in the line
                 for (int rowByteIndex = 0; rowByteIndex < meaningfulRowBytes; rowByteIndex++)
                 {
-                    unsigned char rowByte = ReadI8(fileBuffer, fileBufferPosition);
+                    unsigned char rowByte = ReadI8(_file, filePosition);
 
                     //the pixel specified by the most significant nibble (i.e. the left pixel)
 
@@ -452,7 +446,14 @@ namespace BMP_Decoder
                         break; //go to next line
                     }
 
-                    image.Pixels[rowIndex * image.Width + columnIndex] = image.ColorTable[bit_operations::GetBits(rowByte, 4, 7)];
+                    if (_outputScanlineOrder == ScanlineOrder::TOP_DOWN)
+                    {
+                        image.Pixels[rowIndex * image.Width + columnIndex] = image.ColorTable[bit_operations::GetBits(rowByte, 4, 7)];
+                    }
+                    else
+                    {
+                        image.Pixels[((image.Height - rowIndex) - 1) * image.Width + columnIndex] = image.ColorTable[bit_operations::GetBits(rowByte, 4, 7)];
+                    }
 
                     //the pixel specified by the least significant nibble (i.e. the right pixel)
 
@@ -463,11 +464,18 @@ namespace BMP_Decoder
                         break; //go to next line
                     }
 
-                    image.Pixels[rowIndex * image.Width + columnIndex] = image.ColorTable[bit_operations::GetBits(rowByte, 0, 3)];
+                    if (_outputScanlineOrder == ScanlineOrder::TOP_DOWN)
+                    {
+                        image.Pixels[rowIndex * image.Width + columnIndex] = image.ColorTable[bit_operations::GetBits(rowByte, 0, 3)];
+                    }
+                    else
+                    {
+                        image.Pixels[((image.Height - rowIndex) - 1) * image.Width + columnIndex] = image.ColorTable[bit_operations::GetBits(rowByte, 0, 3)];
+                    }
                 }
 
                 //ignoring the padding at the end of the line
-                fileBufferPosition += rowPadding;
+                filePosition += rowPadding;
 
                 if (image.ScanlineOrder == ScanlineOrder::TOP_DOWN && rowIndex++ == image.Height - 1)
                 {
@@ -487,8 +495,8 @@ namespace BMP_Decoder
             //for every byte pair (encoded or absolute)
             while (true)
             {
-                    unsigned char byte1 = ReadI8(fileBuffer, fileBufferPosition);
-                    unsigned char byte2 = ReadI8(fileBuffer, fileBufferPosition);
+                    unsigned char byte1 = ReadI8(_file, filePosition);
+                    unsigned char byte2 = ReadI8(_file, filePosition);
 
                    //if the pair is encoded
                    if (byte1 > 0)
@@ -501,11 +509,25 @@ namespace BMP_Decoder
                         {
                             if (numeric::IsEven(i))
                             {
-                                image.Pixels[rowIndex * image.Width + columnIndex] = image.ColorTable[firstColorIndex];
+                                if (_outputScanlineOrder == ScanlineOrder::TOP_DOWN)
+                                {
+                                    image.Pixels[rowIndex * image.Width + columnIndex] = image.ColorTable[firstColorIndex];
+                                }
+                                else
+                                {
+                                    image.Pixels[((image.Height - rowIndex) - 1) * image.Width + columnIndex] = image.ColorTable[firstColorIndex];
+                                }
                             }
                             else
                             {
-                                image.Pixels[rowIndex * image.Width + columnIndex] = image.ColorTable[secondColorIndex];
+                                if (_outputScanlineOrder == ScanlineOrder::TOP_DOWN)
+                                {
+                                    image.Pixels[rowIndex * image.Width + columnIndex] = image.ColorTable[secondColorIndex];
+                                }
+                                else
+                                {
+                                    image.Pixels[((image.Height - rowIndex) - 1) * image.Width + columnIndex] = image.ColorTable[firstColorIndex];
+                                }
                             }
 
                             columnIndex++;
@@ -536,8 +558,8 @@ namespace BMP_Decoder
                         //'delta' sequence ((!) not tested)
                         else
                         {
-                            columnIndex += ReadI8(fileBuffer, fileBufferPosition);
-                            rowIndex += ReadI8(fileBuffer, fileBufferPosition);
+                            columnIndex += ReadI8(_file, filePosition);
+                            rowIndex += ReadI8(_file, filePosition);
                         }
                    }
                    //(STATE) the pair specifies 'absolute' (i.e. non-compressed) sequence
@@ -554,14 +576,21 @@ namespace BMP_Decoder
 
                         for (int i = 0; i < numberOfBytesToRead; i++)
                         {
-                            unsigned char byte = ReadI8(fileBuffer, fileBufferPosition);
+                            unsigned char byte = ReadI8(_file, filePosition);
 
                             //write the first pixel (most significant nibble) if the most significant nibble represents a pixel (i.e. it's not an alignment nibble)
                             if (pixelCounter_ < numberOfPixels)
                             {
                                 unsigned char firstColorIndex = bit_operations::GetBits(byte, 4, 7);
 
-                                image.Pixels[rowIndex * image.Width + columnIndex] = image.ColorTable[firstColorIndex];
+                                if (_outputScanlineOrder == ScanlineOrder::TOP_DOWN)
+                                {
+                                    image.Pixels[rowIndex * image.Width + columnIndex] = image.ColorTable[firstColorIndex];
+                                }
+                                else
+                                {
+                                    image.Pixels[((image.Height - rowIndex) - 1) * image.Width + columnIndex] = image.ColorTable[firstColorIndex];
+                                }
 
                                 columnIndex++;
                                 pixelCounter_++;
@@ -572,7 +601,14 @@ namespace BMP_Decoder
                             {
                                 unsigned char secondColorIndex = bit_operations::GetBits(byte, 0, 3);
 
-                                image.Pixels[rowIndex * image.Width + columnIndex] = image.ColorTable[secondColorIndex];
+                                if (_outputScanlineOrder == ScanlineOrder::TOP_DOWN)
+                                {
+                                    image.Pixels[rowIndex * image.Width + columnIndex] = image.ColorTable[secondColorIndex];
+                                }
+                                else
+                                {
+                                    image.Pixels[((image.Height - rowIndex) - 1) * image.Width + columnIndex] = image.ColorTable[secondColorIndex];
+                                }
 
                                 columnIndex++;
                                 pixelCounter_++;
@@ -607,12 +643,20 @@ namespace BMP_Decoder
                         break; //go to next line
                     }
 
-                    unsigned char rowByte = ReadI8(fileBuffer, fileBufferPosition);
-                    image.Pixels[rowIndex * image.Width + rowByteIndex] = image.ColorTable[rowByte];
+                    unsigned char rowByte = ReadI8(_file, filePosition);
+
+                    if (_outputScanlineOrder == ScanlineOrder::TOP_DOWN)
+                    {
+                        image.Pixels[rowIndex * image.Width + rowByteIndex] = image.ColorTable[rowByte];
+                    }
+                    else
+                    {
+                        image.Pixels[((image.Height - rowIndex) - 1) * image.Width + rowByteIndex] = image.ColorTable[rowByte];
+                    }
                 }
 
                 //ignoring the padding-a at the end of the line
-                fileBufferPosition += rowPadding;
+                filePosition += rowPadding;
 
                 if (image.ScanlineOrder == ScanlineOrder::TOP_DOWN && rowIndex++ == image.Height - 1)
                 {
@@ -632,8 +676,8 @@ namespace BMP_Decoder
             //for every byte pair (encoded or absolute)
             while (true)
             {
-                unsigned char byte1 = ReadI8(fileBuffer, fileBufferPosition);
-                unsigned char byte2 = ReadI8(fileBuffer, fileBufferPosition);
+                unsigned char byte1 = ReadI8(_file, filePosition);
+                unsigned char byte2 = ReadI8(_file, filePosition);
 
                 //if the pair is encoded
                 if (byte1 > 0)
@@ -641,7 +685,14 @@ namespace BMP_Decoder
                     //for every pixel in this run-length sequence
                     for (int i = 0; i < byte1; i++)
                     {
-                        image.Pixels[rowIndex * image.Width + columnIndex] = image.ColorTable[byte2];
+                        if (_outputScanlineOrder == ScanlineOrder::TOP_DOWN)
+                        {
+                            image.Pixels[rowIndex * image.Width + columnIndex] = image.ColorTable[byte2];
+                        }
+                        else
+                        {
+                            image.Pixels[((image.Height - rowIndex) - 1) * image.Width + columnIndex] = image.ColorTable[byte2];
+                        }
 
                         columnIndex++;
                     }
@@ -671,8 +722,8 @@ namespace BMP_Decoder
                     //'delta' sequence ((!) it's not tested)
                     else
                     {
-                        columnIndex += ReadI8(fileBuffer, fileBufferPosition);
-                        rowIndex += ReadI8(fileBuffer, fileBufferPosition);
+                        columnIndex += ReadI8(_file, filePosition);
+                        rowIndex += ReadI8(_file, filePosition);
                     }
                 }
                 //(STATE) the pair represents an 'absolute' (i.e. non-compressed) sequence
@@ -684,14 +735,21 @@ namespace BMP_Decoder
 
                     for (int i = 0; i < numberOfBytesToRead; i++)
                     {
-                        unsigned char byte = ReadI8(fileBuffer, fileBufferPosition);
+                        unsigned char byte = ReadI8(_file, filePosition);
 
                         //write the pixel if this byte represents a pixel (i.e. it's nto an alignment byte)
                         if (pixelCounter_ < numberOfPixels)
                         {
                             unsigned char colorIndex = byte;
 
-                            image.Pixels[rowIndex * image.Width + columnIndex] = image.ColorTable[colorIndex];
+                            if (_outputScanlineOrder == ScanlineOrder::TOP_DOWN)
+                            {
+                                image.Pixels[rowIndex * image.Width + columnIndex] = image.ColorTable[colorIndex];
+                            }
+                            else
+                            {
+                                image.Pixels[((image.Height - rowIndex) - 1) * image.Width + columnIndex] = image.ColorTable[colorIndex];
+                            }
 
                             columnIndex++;
                             pixelCounter_++;
@@ -723,7 +781,7 @@ namespace BMP_Decoder
                     //for every two meaningful byte (pixel) in the line
                     for (int rowByteIndex = 0; rowByteIndex < meaningfulRowBytes; rowByteIndex += 2)
                     {
-                        unsigned short rowWord = ReadI16(fileBuffer, fileBufferPosition);
+                        unsigned short rowWord = ReadI16(_file, filePosition);
 
                         RGBA color;
 
@@ -739,11 +797,18 @@ namespace BMP_Decoder
                             break; //go to next line
                         }
 
-                        image.Pixels[(rowIndex * image.Width) + (rowByteIndex / 2)] = color;
+                        if (_outputScanlineOrder == ScanlineOrder::TOP_DOWN)
+                        {
+                             image.Pixels[(rowIndex * image.Width) + (rowByteIndex / 2)] = color;
+                        }
+                        else
+                        {
+                            image.Pixels[(((image.Height - rowIndex) - 1) * image.Width) + (rowByteIndex / 2)] = color;
+                        }
                     }
 
                     //ignoring the padding at the end of the line
-                    fileBufferPosition += rowPadding;
+                    filePosition += rowPadding;
 
                     if (image.ScanlineOrder == ScanlineOrder::TOP_DOWN && rowIndex++ == image.Height - 1)
                     {
@@ -808,7 +873,7 @@ namespace BMP_Decoder
                     //for every two meaningful bytes (pixel) in the line
                     for (int rowByteIndex = 0; rowByteIndex < meaningfulRowBytes; rowByteIndex += 2)
                     {
-                        unsigned short rowWord = ReadI16(fileBuffer, fileBufferPosition);
+                        unsigned short rowWord = ReadI16(_file, filePosition);
 
                         RGBA color;
 
@@ -842,11 +907,18 @@ namespace BMP_Decoder
                             break; //go to next line
                         }
 
-                        image.Pixels[(rowIndex * image.Width) + (rowByteIndex / 2)] = color;
+                        if (_outputScanlineOrder == ScanlineOrder::TOP_DOWN)
+                        {
+                            image.Pixels[(rowIndex * image.Width) + (rowByteIndex / 2)] = color;
+                        }
+                        else
+                        {
+                            image.Pixels[(((image.Height - rowIndex) - 1) * image.Width) + (rowByteIndex / 2)] = color;
+                        }
                     }
 
                     //ignoring the padding at the end of the line
-                    fileBufferPosition += rowPadding;
+                    filePosition += rowPadding;
 
                     if (image.ScanlineOrder == ScanlineOrder::TOP_DOWN && rowIndex++ == image.Height - 1)
                     {
@@ -881,16 +953,23 @@ namespace BMP_Decoder
                 for (int rowByteIndex = 0, columnIndex = 0; rowByteIndex < meaningfulRowBytes; rowByteIndex += 3, columnIndex++)
                 {
                     RGBA color;
-                    color.B = ReadI8(fileBuffer, fileBufferPosition);
-                    color.G = ReadI8(fileBuffer, fileBufferPosition);
-                    color.R = ReadI8(fileBuffer, fileBufferPosition);
+                    color.B = ReadI8(_file, filePosition);
+                    color.G = ReadI8(_file, filePosition);
+                    color.R = ReadI8(_file, filePosition);
                     color.A = 255;
 
-                    image.Pixels[(rowIndex * image.Width) + columnIndex] = color;
+                    if (_outputScanlineOrder == ScanlineOrder::TOP_DOWN)
+                    {
+                        image.Pixels[(rowIndex * image.Width) + columnIndex] = color;
+                    }
+                    else
+                    {
+                        image.Pixels[(((image.Height - rowIndex) - 1) * image.Width) + columnIndex] = color;
+                    }
                 }
 
                 //ignoring the padding at the end of the line
-                fileBufferPosition += rowPadding;
+                filePosition += rowPadding;
 
                 if (image.ScanlineOrder == ScanlineOrder::TOP_DOWN && rowIndex++ == image.Height - 1)
                 {
@@ -915,7 +994,7 @@ namespace BMP_Decoder
                     //for every four meaningful bytes (pixel) in the line
                     for (int rowWordIndex = 0; rowWordIndex < image.Width; rowWordIndex++)
                     {
-                        unsigned int rowWord = ReadI32(fileBuffer, fileBufferPosition);
+                        unsigned int rowWord = ReadI32(_file, filePosition);
 
                         RGBA color;
 
@@ -928,7 +1007,14 @@ namespace BMP_Decoder
                         //color.G = bit_operations::GetBits(rowWord, 8, 15);
                         //color.B = bit_operations::GetBits(rowWord, 0, 7);
 
-                        image.Pixels[(rowIndex * image.Width) + rowWordIndex] = color;
+                        if (_outputScanlineOrder == ScanlineOrder::TOP_DOWN)
+                        {
+                            image.Pixels[(rowIndex * image.Width) + rowWordIndex] = color;
+                        }
+                        else
+                        {
+                            image.Pixels[(((image.Height - rowIndex) - 1) * image.Width) + rowWordIndex] = color;
+                        }
                     }
 
                     if (image.ScanlineOrder == ScanlineOrder::TOP_DOWN && rowIndex++ == image.Height - 1)
@@ -959,7 +1045,7 @@ namespace BMP_Decoder
                     //for every four meaningful bytes (pixel) in the line
                     for (int rowWordIndex = 0; rowWordIndex < image.Width; rowWordIndex++)
                     {
-                        unsigned int rowWord = ReadI32(fileBuffer, fileBufferPosition);
+                        unsigned int rowWord = ReadI32(_file, filePosition);
 
                         RGBA color;
 
@@ -986,7 +1072,14 @@ namespace BMP_Decoder
                             color.A = 0;
                         }
 
-                        image.Pixels[(rowIndex * image.Width) + rowWordIndex] = color;
+                        if (_outputScanlineOrder == ScanlineOrder::TOP_DOWN)
+                        {
+                            image.Pixels[(rowIndex * image.Width) + rowWordIndex] = color;
+                        }
+                        else
+                        {
+                            image.Pixels[(((image.Height - rowIndex) - 1) * image.Width) + rowWordIndex] = color;
+                        }
                     }
 
                     if (image.ScanlineOrder == ScanlineOrder::TOP_DOWN && rowIndex++ == image.Height - 1)
@@ -1001,8 +1094,32 @@ namespace BMP_Decoder
             }
         }
 
-        delete [] fileBuffer;
+        delete [] _file;
 
         return statusCode;
+    }
+
+    //(MUTATE _image)
+    //if _generatePixelData is false, then only metadata is generated (no pixel data)
+    /* if _outputScanlineOrder is TOP_DOWN then the first line in the generated image is the topmost line of the input image and if
+       it's BOTTOM_UP then the first line in the generated image is the bottom-most line of the input image */
+    //the generated image is 32bpp
+    /* the file specified by _filepath (exists), (it's size is maximum 1GB), (it contains maximum 1 billion pixels)
+       and is (structurally and semantically valid) (no validation is performed at all) -> */
+    int Decode(const string& _filepath, bool _generatePixelData, BMP_Image& _image, ScanlineOrder _outputScanlineOrder)
+    {
+        filesystem::File file(_filepath);
+
+        if (file.size() > 1024 * 1024 * 1024)
+        {
+            return ERROR_FILE_OVER_1_GIGABYTE;
+        }
+
+        unsigned char* fileBuffer = new unsigned char[file.size()];
+        file.ReadBlock(fileBuffer, file.size(), false);
+
+        file.Close();
+
+        return Decode(fileBuffer, _generatePixelData, _image, _outputScanlineOrder);
     }
 }
