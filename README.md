@@ -1,6 +1,6 @@
 # BMP_Decoder
 
-© 2024, Stanislav Petrov
+© 2024, Stanislav Petrov 
 
 This decoder supports:
 - 1bpp non-compressed images
