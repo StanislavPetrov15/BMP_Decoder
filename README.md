@@ -19,4 +19,4 @@ Planned future support for:
 - color profiles
 - halftoning
 
-It uses the f-code library (in my other repository).
+- it does not use third-party functionality; it's fully independent 
